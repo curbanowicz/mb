@@ -1,0 +1,20 @@
+Private Sub Worksheet_Change(ByVal Target As Range)
+
+    On Error GoTo Koniec
+    Application.EnableEvents = False
+
+    If Target.CountLarge > 1 Then GoTo Koniec
+
+    If Target.Column = 3 And Target.Row = 2 Then
+
+        If Target.Value <> "" Then
+            Rows(2).Insert Shift:=xlDown
+            Cells(2, 1).Select
+        End If
+
+    End If
+
+Koniec:
+    Application.EnableEvents = True
+
+End Sub
