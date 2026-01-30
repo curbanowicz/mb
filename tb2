@@ -1,0 +1,20 @@
+Private Sub Worksheet_Change(ByVal Target As Range)
+
+    On Error GoTo Koniec
+    Application.EnableEvents = False
+
+    If Target.Column <> 1 Then GoTo Koniec
+
+    If Target.Row < 2 Then GoTo Koniec
+
+    If Application.WorksheetFunction.CountA(Target) = 0 Then GoTo Koniec
+
+    Rows(2).Insert Shift:=xlDown
+    Rows(2).ClearFormats
+
+    Cells(2, 1).Select
+
+Koniec:
+    Application.EnableEvents = True
+
+End Sub
