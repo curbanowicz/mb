@@ -1,0 +1,29 @@
+Private Sub Worksheet_Change(ByVal Target As Range)
+
+    On Error GoTo Koniec
+    Application.EnableEvents = False
+
+    If Target.Column <> 1 Then GoTo Koniec
+    If Target.Row <> 2 Then GoTo Koniec
+
+    If Application.WorksheetFunction.CountA(Target) = 0 Then GoTo Koniec
+
+    Dim dane As Variant
+    dane = Target.Value
+
+    Dim ile As Long
+    ile = Target.Rows.Count
+
+    Application.Undo
+
+    Rows(2).Resize(ile + 1).Insert Shift:=xlDown
+    Rows(2).ClearFormats
+
+    Cells(3, 1).Resize(ile, 1).Value = dane
+
+    Cells(2, 1).Select
+
+Koniec:
+    Application.EnableEvents = True
+
+End Sub
