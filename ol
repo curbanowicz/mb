@@ -1,127 +1,3 @@
-Option Explicit
-
-
-'=========================================================
-' FUNKCJA: WYCIĄGANIE NUMERU WNIOSKU Z TEMATU
-'=========================================================
-Function WyciagnijNumerWniosku(ByVal Temat As String) As String
-
-    Dim Regex As Object
-    Dim Matches As Object
-    
-    Set Regex = CreateObject("VBScript.RegExp")
-    
-    With Regex
-        .Global = False
-        .IgnoreCase = True
-        
-        '3-6 liter + 8-10 cyfr
-        .Pattern = "(^|[^A-Za-z])([A-Za-z]{3,6}[0-9]{8,10})(?![0-9])"
-    End With
-    
-    Set Matches = Regex.Execute(Temat)
-    
-    If Matches.Count > 0 Then
-        WyciagnijNumerWniosku = Matches(0).SubMatches(1)
-    Else
-        WyciagnijNumerWniosku = ""
-    End If
-
-End Function
-
-
-'=========================================================
-' UZUPEŁNIANIE NUMERÓW WNIOSKÓW W ISTNIEJĄCYCH DANYCH
-'=========================================================
-Sub UzupelnijNumeryWnioskow()
-
-    Dim Ws As Worksheet
-    Dim OstatniWiersz As Long
-    Dim i As Long
-    
-    Dim Temat As String
-    Dim Numer As String
-    
-    Dim LicznikUzupelnionych As Long
-    Dim LicznikBrakNumeru As Long
-    
-    Dim StaryScreenUpdating As Boolean
-    Dim StaryCalculation As XlCalculation
-    Dim StaryEnableEvents As Boolean
-    
-    On Error GoTo Blad
-    
-    Set Ws = ThisWorkbook.Worksheets("Outlook")
-    
-    StaryScreenUpdating = Application.ScreenUpdating
-    StaryCalculation = Application.Calculation
-    StaryEnableEvents = Application.EnableEvents
-    
-    Application.ScreenUpdating = False
-    Application.Calculation = xlCalculationManual
-    Application.EnableEvents = False
-    
-    'Ostatni wiersz według kolumny D - Temat
-    OstatniWiersz = Ws.Cells(Ws.Rows.Count, "D").End(xlUp).Row
-    
-    If OstatniWiersz < 2 Then
-        MsgBox "Brak danych do uzupełnienia.", vbInformation
-        GoTo Koniec
-    End If
-    
-    For i = 2 To OstatniWiersz
-        
-        'Uzupełniamy tylko puste numery
-        If Trim(CStr(Ws.Cells(i, "A").Value)) = "" Then
-            
-            Temat = CStr(Ws.Cells(i, "D").Value)
-            
-            If Len(Temat) > 0 Then
-                
-                Numer = WyciagnijNumerWniosku(Temat)
-                
-                If Numer <> "" Then
-                    Ws.Cells(i, "A").Value = Numer
-                    LicznikUzupelnionych = LicznikUzupelnionych + 1
-                Else
-                    LicznikBrakNumeru = LicznikBrakNumeru + 1
-                End If
-                
-            End If
-            
-        End If
-        
-    Next i
-    
-Koniec:
-
-    Application.ScreenUpdating = StaryScreenUpdating
-    Application.Calculation = StaryCalculation
-    Application.EnableEvents = StaryEnableEvents
-    
-    MsgBox "Uzupełnianie zakończone." & vbCrLf & vbCrLf & _
-           "Uzupełniono numerów: " & LicznikUzupelnionych & vbCrLf & _
-           "Nie znaleziono numeru: " & LicznikBrakNumeru, _
-           vbInformation
-
-    Exit Sub
-
-Blad:
-
-    Application.ScreenUpdating = StaryScreenUpdating
-    Application.Calculation = StaryCalculation
-    Application.EnableEvents = StaryEnableEvents
-    
-    MsgBox "Wystąpił błąd podczas uzupełniania:" & vbCrLf & vbCrLf & _
-           Err.Number & " - " & Err.Description, _
-           vbCritical
-
-End Sub
-
-
-'=========================================================
-' GŁÓWNE MAKRO - POBIERANIE MAILI Z OUTLOOKA
-'=========================================================
 Sub PobierzMaile()
 
     Dim OutlookApp As Object
@@ -132,12 +8,14 @@ Sub PobierzMaile()
     
     Dim Ws As Worksheet
     Dim WsProblemy As Worksheet
-    
     Dim Dict As Object
     
     Dim OstatniWiersz As Long
     Dim OstatniWierszProblemow As Long
     Dim NowyWiersz As Long
+    
+    Dim i As Long
+    Dim LiczbaElementow As Long
     
     Dim EntryID As String
     Dim Temat As String
@@ -161,16 +39,16 @@ Sub PobierzMaile()
     
     CzasStart = Timer
     
-    '-----------------------------------------------------
+    '=====================================================
     ' ARKUSZE
-    '-----------------------------------------------------
+    '=====================================================
     
     Set Ws = ThisWorkbook.Worksheets("Outlook")
     Set WsProblemy = ThisWorkbook.Worksheets("Problemy")
     
-    '-----------------------------------------------------
+    '=====================================================
     ' USTAWIENIA EXCELA
-    '-----------------------------------------------------
+    '=====================================================
     
     StaryScreenUpdating = Application.ScreenUpdating
     StaryCalculation = Application.Calculation
@@ -180,15 +58,15 @@ Sub PobierzMaile()
     Application.Calculation = xlCalculationManual
     Application.EnableEvents = False
     
-    '-----------------------------------------------------
+    '=====================================================
     ' DATA GRANICZNA
-    '-----------------------------------------------------
+    '=====================================================
     
     DataOd = DateSerial(2026, 6, 1)
     
-    '-----------------------------------------------------
+    '=====================================================
     ' SŁOWNIK ISTNIEJĄCYCH ENTRYID
-    '-----------------------------------------------------
+    '=====================================================
     
     Set Dict = CreateObject("Scripting.Dictionary")
     Dict.CompareMode = vbBinaryCompare
@@ -197,25 +75,25 @@ Sub PobierzMaile()
     
     If OstatniWiersz >= 2 Then
         
-        Dim i As Long
-        
         For i = 2 To OstatniWiersz
             
             EntryID = Trim(CStr(Ws.Cells(i, "E").Value))
             
             If EntryID <> "" Then
+                
                 If Not Dict.Exists(EntryID) Then
                     Dict.Add EntryID, True
                 End If
+                
             End If
             
         Next i
         
     End If
     
-    '-----------------------------------------------------
+    '=====================================================
     ' POŁĄCZENIE Z OUTLOOKIEM
-    '-----------------------------------------------------
+    '=====================================================
     
     On Error Resume Next
     
@@ -228,14 +106,15 @@ Sub PobierzMaile()
     On Error GoTo BladGlowny
     
     If OutlookApp Is Nothing Then
-        Err.Raise vbObjectError + 1000, , "Nie udało się uruchomić Outlooka."
+        Err.Raise vbObjectError + 1000, , _
+                  "Nie udało się uruchomić Outlooka."
     End If
     
     Set OutlookNS = OutlookApp.GetNamespace("MAPI")
     
-    '-----------------------------------------------------
-    ' FOLDER OUTLOOK
-    '-----------------------------------------------------
+    '=====================================================
+    ' FOLDER
+    '=====================================================
     
     Set Folder = OutlookNS.GetDefaultFolder(6).Folders("PEP Onboarding All")
     
@@ -244,92 +123,104 @@ Sub PobierzMaile()
     'Najnowsze maile jako pierwsze
     Items.Sort "[ReceivedTime]", True
     
-    '-----------------------------------------------------
-    ' POBIERANIE MAILI
-    '-----------------------------------------------------
+    LiczbaElementow = Items.Count
     
-    For Each Mail In Items
+    '=====================================================
+    ' PRZEJŚCIE PO MAILACH
+    '=====================================================
+    
+    For i = 1 To LiczbaElementow
         
-        'Sprawdzamy tylko wiadomości e-mail
-        If Mail.Class = 43 Then
+        '-------------------------------------------------
+        ' BARDZO WAŻNE:
+        ' Obsługę błędu włączamy PRZED odczytem maila.
+        '-------------------------------------------------
+        
+        On Error GoTo ProblemZMailem
+        
+        Set Mail = Items.Item(i)
+        
+        '-------------------------------------------------
+        ' Sprawdzamy czy to wiadomość e-mail
+        '-------------------------------------------------
+        
+        If Mail.Class <> 43 Then
+            GoTo NastepnyMail
+        End If
+        
+        '-------------------------------------------------
+        ' DATA
+        '-------------------------------------------------
+        
+        DataMaila = Mail.ReceivedTime
+        
+        'Jeżeli jesteśmy już przed 01.06.2026,
+        'kończymy dalsze przeglądanie.
+        If DataMaila < DataOd Then
+            GoTo KoniecPetli
+        End If
+        
+        '-------------------------------------------------
+        ' ENTRY ID
+        '-------------------------------------------------
+        
+        EntryID = Mail.EntryID
+        
+        '-------------------------------------------------
+        ' SPRAWDZENIE DUPLIKATU
+        '-------------------------------------------------
+        
+        If Dict.Exists(EntryID) Then
             
-            On Error GoTo ProblemZMailem
+            LicznikPominietych = LicznikPominietych + 1
             
-            '---------------------------------------------
-            ' DATA MAILA
-            '---------------------------------------------
-            
-            DataMaila = Mail.ReceivedTime
-            
-            'Jeżeli jesteśmy już przed datą graniczną,
-            'możemy zakończyć cały proces.
-            If DataMaila < DataOd Then
-                GoTo KoniecPetli
-            End If
-            
-            '---------------------------------------------
-            ' ENTRY ID
-            '---------------------------------------------
-            
-            EntryID = Mail.EntryID
-            
-            '---------------------------------------------
-            ' SPRAWDZENIE DUPLIKATU
-            '---------------------------------------------
-            
-            If Dict.Exists(EntryID) Then
-                
-                LicznikPominietych = LicznikPominietych + 1
-                
-                GoTo NastepnyMail
-                
-            End If
-            
-            '---------------------------------------------
-            ' ODCZYT PODSTAWOWYCH DANYCH
-            '---------------------------------------------
-            
-            Nadawca = Mail.SenderName
-            Temat = Mail.Subject
-            
-            '---------------------------------------------
-            ' WYCIĄGNIĘCIE NUMERU WNIOSKU
-            '---------------------------------------------
-            
-            NumerWniosku = WyciagnijNumerWniosku(Temat)
-            
-            '---------------------------------------------
-            ' NOWY WIERSZ
-            '---------------------------------------------
-            
-            NowyWiersz = Ws.Cells(Ws.Rows.Count, "E").End(xlUp).Row + 1
-            
-            Ws.Cells(NowyWiersz, "A").Value = NumerWniosku
-            Ws.Cells(NowyWiersz, "B").Value = DataMaila
-            Ws.Cells(NowyWiersz, "C").Value = Nadawca
-            Ws.Cells(NowyWiersz, "D").Value = Temat
-            Ws.Cells(NowyWiersz, "E").Value = EntryID
-            
-            'Dodajemy do słownika, żeby podczas tego samego
-            'uruchomienia nie pobrać go drugi raz.
-            Dict.Add EntryID, True
-            
-            LicznikNowych = LicznikNowych + 1
+            GoTo NastepnyMail
             
         End If
         
-NastepnyMail:
+        '-------------------------------------------------
+        ' DANE MAILA
+        '-------------------------------------------------
         
-        'Wracamy do normalnego działania obsługi błędów
+        Nadawca = Mail.SenderName
+        Temat = Mail.Subject
+        
+        '-------------------------------------------------
+        ' NUMER WNIOSKU
+        '-------------------------------------------------
+        
+        NumerWniosku = WyciagnijNumerWniosku(Temat)
+        
+        '-------------------------------------------------
+        ' NOWY WIERSZ W EXCELU
+        '-------------------------------------------------
+        
+        NowyWiersz = Ws.Cells(Ws.Rows.Count, "E").End(xlUp).Row + 1
+        
+        Ws.Cells(NowyWiersz, "A").Value = NumerWniosku
+        Ws.Cells(NowyWiersz, "B").Value = DataMaila
+        Ws.Cells(NowyWiersz, "C").Value = Nadawca
+        Ws.Cells(NowyWiersz, "D").Value = Temat
+        Ws.Cells(NowyWiersz, "E").Value = EntryID
+        
+        'Dodajemy EntryID do słownika
+        Dict.Add EntryID, True
+        
+        LicznikNowych = LicznikNowych + 1
+        
+NastepnyMail:
+
+        'Reset obsługi błędu przed kolejnym elementem
         On Error GoTo BladGlowny
         
-    Next Mail
-    
+    Next i
+
+
 KoniecPetli:
 
-    '-----------------------------------------------------
+    '=====================================================
     ' PRZYWRÓCENIE USTAWIEŃ
-    '-----------------------------------------------------
+    '=====================================================
     
     Application.ScreenUpdating = StaryScreenUpdating
     Application.Calculation = StaryCalculation
@@ -346,43 +237,61 @@ KoniecPetli:
 
 
 '=========================================================
-' OBSŁUGA PROBLEMATYCZNEGO MAILA
+' PROBLEM Z KONKRETNYM MAILEM
 '=========================================================
 
 ProblemZMailem:
 
+    Dim NumerBledu As Long
+    Dim OpisBledu As String
+    
+    'Zapamiętujemy błąd zanim go wyczyścimy
+    NumerBledu = Err.Number
+    OpisBledu = Err.Description
+    
+    '-----------------------------------------------------
+    ' Tutaj NIE zakładamy, że właściwości maila
+    ' na pewno dadzą się odczytać.
+    ' Każdy zapis próbujemy osobno.
+    '-----------------------------------------------------
+    
     On Error Resume Next
     
-    'Nowy wiersz w arkuszu Problemy
-    OstatniWierszProblemow = WsProblemy.Cells(WsProblemy.Rows.Count, "A").End(xlUp).Row + 1
+    OstatniWierszProblemow = _
+        WsProblemy.Cells(WsProblemy.Rows.Count, "A").End(xlUp).Row + 1
     
     'Data
+    Err.Clear
     WsProblemy.Cells(OstatniWierszProblemow, "A").Value = Mail.ReceivedTime
     
     'Nadawca
+    Err.Clear
     WsProblemy.Cells(OstatniWierszProblemow, "B").Value = Mail.SenderName
     
     'Temat
+    Err.Clear
     WsProblemy.Cells(OstatniWierszProblemow, "C").Value = Mail.Subject
     
-    'BŁĄD
+    'Opis błędu
     WsProblemy.Cells(OstatniWierszProblemow, "D").Value = _
-        Err.Number & " - " & Err.Description
+        NumerBledu & " - " & OpisBledu
     
     'EntryID
+    Err.Clear
     WsProblemy.Cells(OstatniWierszProblemow, "E").Value = Mail.EntryID
     
     LicznikProblemow = LicznikProblemow + 1
     
     Err.Clear
     
+    'Wracamy do normalnej obsługi
     On Error GoTo BladGlowny
     
     GoTo NastepnyMail
 
 
 '=========================================================
-' BŁĄD GŁÓWNY MAKRA
+' GŁÓWNY BŁĄD MAKRA
 '=========================================================
 
 BladGlowny:
